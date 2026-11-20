@@ -199,11 +199,14 @@ export function drawStreets(ctx, state, view) {
       const y1 = city.rows[j + 1] - half;
       if (x1 < left - 60 || x0 > right + 60 || y1 < top - 60 || y0 > bottom + 60) continue;
       const park = state.city.parks.find((p) => p.x > x0 - 30 && p.y > y0 - 30 && p.x + p.w < x1 + 10 && p.y + p.h < y1 + 10);
+      const down = state.city.downtown;
+      const downtown = Boolean(down) && (x0 + x1) / 2 >= down.x0 && (x0 + x1) / 2 <= down.x1
+        && (y0 + y1) / 2 >= down.y0 && (y0 + y1) / 2 <= down.y1;
       const sw = city.sidewalk;
       // The pavement ring, then the yard or the park inside it.
-      ctx.fillStyle = park ? '#3a4a44' : '#3b3b48';
+      ctx.fillStyle = park ? '#3a4a44' : downtown ? '#3f3f4e' : '#3b3b48';
       ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-      ctx.fillStyle = park ? '#1b3b31' : '#22222c';
+      ctx.fillStyle = park ? '#1b3b31' : downtown ? '#262734' : '#22222c';
       ctx.fillRect(x0 + sw, y0 + sw, x1 - x0 - sw * 2, y1 - y0 - sw * 2);
       if (park) {
         ctx.fillStyle = '#16362c';
@@ -240,6 +243,9 @@ export function drawStreets(ctx, state, view) {
     }
   }
 
+  // The downtown plaza and its fountain sit on top of the district's pavement ring.
+  if (city.downtown?.plaza) drawPlaza(ctx, state, view, city.downtown.plaza);
+
   // Paint. Every avenue is a four-lane boulevard: a double-yellow centre line through the
   // junction-to-junction stretch, a dashed white divider down each half, a white kerb line and
   // angle-parked bays along it, then stop bars, turn arrows and crossings at each corner.
@@ -257,6 +263,181 @@ export function drawStreets(ctx, state, view) {
       ctx.arc(lamp.x, lamp.y, 3.2, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+}
+
+/** The downtown plaza: laid paving, benches, a fountain with a plume and a lit monument. */
+function drawPlaza(ctx, state, view, plaza) {
+  if (plaza.x > view.right + 40 || plaza.x + plaza.w < view.left - 40) return;
+  if (plaza.y > view.bottom + 40 || plaza.y + plaza.h < view.top - 40) return;
+  const m = mood(state.tod);
+
+  // Paving: a lighter stone square, a laid pattern of slabs, a kerb ring and two inlaid circles.
+  ctx.fillStyle = '#3a3648';
+  ctx.fillRect(plaza.x, plaza.y, plaza.w, plaza.h);
+  ctx.fillStyle = '#423e56';
+  ctx.fillRect(plaza.x + 10, plaza.y + 10, plaza.w - 20, plaza.h - 20);
+  ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+  ctx.lineWidth = 1;
+  for (let x = plaza.x + 10; x < plaza.x + plaza.w - 10; x += 24) {
+    ctx.beginPath();
+    ctx.moveTo(x, plaza.y + 10);
+    ctx.lineTo(x, plaza.y + plaza.h - 10);
+    ctx.stroke();
+  }
+  for (let y = plaza.y + 10; y < plaza.y + plaza.h - 10; y += 24) {
+    ctx.beginPath();
+    ctx.moveTo(plaza.x + 10, y);
+    ctx.lineTo(plaza.x + plaza.w - 10, y);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(plaza.x + 1.5, plaza.y + 1.5, plaza.w - 3, plaza.h - 3);
+  ctx.strokeStyle = 'rgba(214,222,248,0.2)';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(plaza.fx, plaza.fy, plaza.fountainR + 44, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(plaza.fx, plaza.fy, plaza.fountainR + 58, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Benches down the two flanks.
+  for (const b of plaza.benches) {
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(b.x - 13, b.y + 3, 26, 4);
+    ctx.fillStyle = '#5a4632';
+    ctx.fillRect(b.x - 13, b.y - 4, 26, 8);
+  }
+
+  // The fountain: basin, water, ripples, then the plume and the light it throws.
+  const r = plaza.fountainR;
+  ctx.fillStyle = 'rgba(6,6,12,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(plaza.fx + 8, plaza.fy + 8, r, r * 0.86, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#4c4658';
+  ctx.beginPath();
+  ctx.arc(plaza.fx, plaza.fy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.fillStyle = '#5d5770';
+  ctx.beginPath();
+  ctx.arc(plaza.fx, plaza.fy, r - 7, 0, Math.PI * 2);
+  ctx.fill();
+  const water = ctx.createRadialGradient(plaza.fx, plaza.fy, 4, plaza.fx, plaza.fy, r - 12);
+  water.addColorStop(0, '#8fe6f5');
+  water.addColorStop(0.6, '#2f8fb0');
+  water.addColorStop(1, '#1a5570');
+  ctx.fillStyle = water;
+  ctx.beginPath();
+  ctx.arc(plaza.fx, plaza.fy, r - 13, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(220,250,255,0.42)';
+  ctx.lineWidth = 1.4;
+  for (let k = 0; k < 3; k += 1) {
+    const rr = 20 + ((state.time * 24 + k * 22) % (r - 24));
+    ctx.globalAlpha = Math.max(0, 1 - rr / (r - 12));
+    ctx.beginPath();
+    ctx.arc(plaza.fx, plaza.fy, rr, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#3c3748';
+  ctx.beginPath();
+  ctx.arc(plaza.fx, plaza.fy, 14, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#57506a';
+  ctx.beginPath();
+  ctx.arc(plaza.fx, plaza.fy, 9, 0, Math.PI * 2);
+  ctx.fill();
+  const plume = 76 + Math.sin(state.time * 2.2) * 6;
+  const spray = ctx.createLinearGradient(plaza.fx, plaza.fy, plaza.fx, plaza.fy - plume);
+  spray.addColorStop(0, 'rgba(200,244,255,0.5)');
+  spray.addColorStop(0.55, 'rgba(150,220,250,0.24)');
+  spray.addColorStop(1, 'rgba(150,220,250,0)');
+  ctx.fillStyle = spray;
+  ctx.beginPath();
+  ctx.moveTo(plaza.fx - 13, plaza.fy);
+  ctx.quadraticCurveTo(plaza.fx - 10, plaza.fy - plume * 0.6, plaza.fx - 6, plaza.fy - plume);
+  ctx.lineTo(plaza.fx + 7, plaza.fy - plume);
+  ctx.quadraticCurveTo(plaza.fx + 11, plaza.fy - plume * 0.6, plaza.fx + 14, plaza.fy);
+  ctx.closePath();
+  ctx.fill();
+  drawGlow(ctx, plaza.fx, plaza.fy - plume * 0.45, 48, '#bfeaff', 0.18 + m.night * 0.16);
+  for (let k = 0; k < 12; k += 1) {
+    const t = (state.time * 0.85 + k / 12) % 1;
+    const a = k * 1.7;
+    ctx.fillStyle = `rgba(226,248,255,${0.5 * (1 - t)})`;
+    ctx.beginPath();
+    ctx.arc(plaza.fx + Math.cos(a) * (12 + t * 46), plaza.fy - Math.sin(Math.PI * t) * plume * 0.8,
+      1.8 - t, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // The monument: a plinth, a tapered stone shaft with a lit cap, and its own long shadow.
+  const mo = plaza.monument;
+  const mw = 30;
+  const mh = 78;
+  const skew = 9;
+  ctx.fillStyle = 'rgba(4,4,10,0.3)';
+  ctx.beginPath();
+  ctx.moveTo(mo.x - mw / 2 + 15, mo.y + 15);
+  ctx.lineTo(mo.x + mw / 2 + 15, mo.y + 15);
+  ctx.lineTo(mo.x + mw / 2 + 15 - 46, mo.y + 15 - 22);
+  ctx.lineTo(mo.x - mw / 2 + 15 - 46, mo.y + 15 - 22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#6a6478';
+  ctx.fillRect(mo.x - mw / 2 - 7, mo.y - 8, mw + 14, 16);
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(mo.x - mw / 2 - 7, mo.y - 8, mw + 14, 16);
+  const topY = mo.y - mh;
+  ctx.fillStyle = '#8b86a0';
+  ctx.beginPath();
+  ctx.moveTo(mo.x - mw / 2, mo.y - 4);
+  ctx.lineTo(mo.x + mw / 2, mo.y - 4);
+  ctx.lineTo(mo.x + skew + 8, topY);
+  ctx.lineTo(mo.x + skew - 8, topY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.26)';
+  ctx.stroke();
+  ctx.fillStyle = '#ffd88a';
+  ctx.beginPath();
+  ctx.moveTo(mo.x + skew - 8, topY);
+  ctx.lineTo(mo.x + skew + 8, topY);
+  ctx.lineTo(mo.x + skew, topY - 17);
+  ctx.closePath();
+  ctx.fill();
+  drawGlow(ctx, mo.x + skew, topY - 12, 24, '#ffd88a', 0.26 + m.night * 0.3);
+
+  // Trees round the square, drawn last so their canopies sit over the paving.
+  for (const t of plaza.trees) {
+    const s = t.size;
+    ctx.fillStyle = 'rgba(6,6,10,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(t.x + 8 * s, t.y + 5 * s, 16 * s, 7 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#3a2a24';
+    ctx.lineWidth = 3 * s;
+    ctx.beginPath();
+    ctx.moveTo(t.x, t.y);
+    ctx.lineTo(t.x + t.lean * 6, t.y - 17 * s);
+    ctx.stroke();
+    ctx.fillStyle = '#1c5539';
+    ctx.beginPath();
+    ctx.arc(t.x + t.lean * 6, t.y - 22 * s, 15 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#276b4f';
+    ctx.beginPath();
+    ctx.arc(t.x + t.lean * 6 - 3 * s, t.y - 26 * s, 11 * s, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 

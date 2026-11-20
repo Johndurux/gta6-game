@@ -27,6 +27,22 @@ export const CITY = {
   sidewalk: 30,
 };
 
+/**
+ * The downtown district: the western half of the grid, one street inland from the coast road.
+ * Six avenues by five streets of blocks, taller towers than the sea-front, kerbside parking
+ * everywhere and a paved plaza with a fountain in the middle of it.
+ */
+export const DOWNTOWN = {
+  /** Avenue indices bounding the district; the district spans cols[col0]..cols[col1]. */
+  col0: 0,
+  col1: 6,
+  /** Street indices bounding it: rows[row0] is the first downtown street south of the coast road. */
+  row0: 1,
+  row1: 6,
+  /** The block turned into a plaza, as offsets inside the district. */
+  plaza: { col: 2, row: 2 },
+};
+
 export const FOOT = {
   radius: 11,
   speed: 178,

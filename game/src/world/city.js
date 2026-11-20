@@ -1,9 +1,10 @@
 // The city of Velara Bay: a grid of twelve avenues by eleven streets, each block holding towers,
 // low shops or a pocket park, a palm-lined beach along the north shore and a pier over the water.
+// The west of the grid is downtown: taller towers, kerbside parking and a plaza with a fountain.
 // Build once from a seed; everything the simulation needs (colliders, road queries, lane spawns,
 // the named corners missions use) is read off the result.
 
-import { CITY, NEON_NAMES, PALETTE, PLACES, TRAFFIC, WORLD } from '../core/config.js';
+import { CITY, DOWNTOWN, NEON_NAMES, PALETTE, PLACES, TRAFFIC, WORLD } from '../core/config.js';
 import { clamp, hash01 } from '../core/math.js';
 
 const TONES = ['#2b2438', '#332a3f', '#242c3c', '#3a2b36', '#2a3444', '#3b3030', '#2d2a2a', '#26323a'];
@@ -29,6 +30,19 @@ export function buildCity(rng) {
     half: CITY.roadHalf,
     sidewalk: CITY.sidewalk,
     lights: { cycle: TRAFFIC.lightCycle },
+    // The downtown district and everything that only exists inside it.
+    downtown: {
+      x0: cols[DOWNTOWN.col0],
+      y0: rows[DOWNTOWN.row0],
+      x1: cols[DOWNTOWN.col1],
+      y1: rows[DOWNTOWN.row1],
+      blocks: [],
+      plaza: null,
+    },
+    /** Kerbside parking bays along the downtown streets and avenues. */
+    parking: [],
+    /** Solid street furniture the player and the pedestrians walk around. */
+    props: [],
   };
 
   const inset = CITY.roadHalf + CITY.sidewalk;
@@ -45,7 +59,15 @@ export function buildCity(rng) {
       const roll = rng();
       city.blocks.push({ x: x0, y: y0, w, h });
 
-      if (roll < 0.14) {
+      // Downtown blocks are dense: no pocket parks, a tower on every lot, the plaza at the centre.
+      const downtownBlock = i >= DOWNTOWN.col0 && i < DOWNTOWN.col1 && j >= DOWNTOWN.row0 && j < DOWNTOWN.row1;
+      if (downtownBlock) city.downtown.blocks.push({ x: x0, y: y0, w, h });
+      if (downtownBlock && i === DOWNTOWN.col0 + DOWNTOWN.plaza.col && j === DOWNTOWN.row0 + DOWNTOWN.plaza.row) {
+        city.downtown.plaza = buildPlaza(city, rng, x0, y0, w, h);
+        continue;
+      }
+
+      if (roll < 0.14 && !downtownBlock) {
         // A pocket park: grass, a crossing path and palms, no buildings to hit.
         city.parks.push({ x: x0 + 4, y: y0 + 4, w: w - 8, h: h - 8, seed });
         for (let p = 0; p < 7; p += 1) {
@@ -59,9 +81,11 @@ export function buildCity(rng) {
         continue;
       }
 
-      const parts = layoutBlock(rng, x0, y0, w, h, i, j);
+      const parts = layoutBlock(rng, x0, y0, w, h, i, j, downtownBlock);
       for (const part of parts) {
-        const tall = clamp(0.7 + rng() * 1.5 + (j < 3 ? 0.55 : 0) + (part.big ? 0.4 : 0), 0.55, 2.6);
+        const boost = downtownBlock ? (part.big ? 1.35 : 0.9) : (j < 3 ? 0.55 : 0);
+        const tall = clamp(0.7 + rng() * 1.5 + boost + (part.big ? 0.4 : 0),
+          downtownBlock ? 1.15 : 0.55, downtownBlock ? 3.2 : 2.6);
         const tone = TONES[Math.floor(rng() * TONES.length)];
         const neon = NEON[Math.floor(rng() * NEON.length)];
         const building = {
@@ -73,11 +97,11 @@ export function buildCity(rng) {
           tone,
           seed: Math.floor(rng() * 100000),
           neon,
-          label: rng.chance(0.55) ? NEON_NAMES[Math.floor(rng() * NEON_NAMES.length)] : null,
-          shop: rng.chance(0.72),
+          label: (downtownBlock || rng.chance(0.55)) ? NEON_NAMES[Math.floor(rng() * NEON_NAMES.length)] : null,
+          shop: downtownBlock ? true : rng.chance(0.72),
         };
         city.buildings.push(building);
-        if (rng.chance(0.18) && part.w > 110) {
+        if (rng.chance(downtownBlock ? 0.34 : 0.18) && part.w > 110) {
           city.billboards.push({
             x: part.x + part.w * 0.5,
             y: part.y + 8,
@@ -99,6 +123,8 @@ export function buildCity(rng) {
   }
   for (let j = 0; j < rows.length; j += 1) {
     for (let i = 0; i < cols.length; i += 3) {
+      // Downtown is concrete: the plaza keeps its own trees inside the block.
+      if (i >= DOWNTOWN.col0 && i < DOWNTOWN.col1 && j >= DOWNTOWN.row0 && j < DOWNTOWN.row1) continue;
       city.palms.push({ x: cols[i] + 62, y: rows[j] + 66, size: rng.range(0.75, 1.1), lean: rng.range(-0.4, 0.4) });
     }
   }
@@ -111,6 +137,9 @@ export function buildCity(rng) {
       city.lamps.push({ x: cols[i] + ox, y: rows[j] + ox });
     }
   }
+
+  // Kerbside parking bays down every downtown avenue and street, kept clear of the junctions.
+  city.parking = parkingSpots(cols, rows);
 
   // Boats out on the bay, each with a wake, so the water is not an empty band.
   city.boats = [];
@@ -144,7 +173,7 @@ export function buildCity(rng) {
 }
 
 /** Split a block into one tower, two bars or a four-shop cluster, leaving service alleys. */
-function layoutBlock(rng, x0, y0, w, h, i, j) {
+function layoutBlock(rng, x0, y0, w, h, i, j, downtown = false) {
   const margin = 9;
   const style = rng();
   if (style < 0.33) {
@@ -169,8 +198,76 @@ function layoutBlock(rng, x0, y0, w, h, i, j) {
     }
   }
   // A fourth lot is sometimes left empty, so the block has a yard instead of a wall of shops.
-  if (hash01(i, j, 3) < 0.4) out.pop();
+  if (hash01(i, j, 3) < (downtown ? 0.18 : 0.4)) out.pop();
   return out;
+}
+
+/** A downtown block turned into a paved plaza: a fountain at the centre, a monument and trees. */
+function buildPlaza(city, rng, x0, y0, w, h) {
+  const pad = 8;
+  const plaza = {
+    x: x0 + pad,
+    y: y0 + pad,
+    w: w - pad * 2,
+    h: h - pad * 2,
+    fx: x0 + w / 2,
+    fy: y0 + h / 2,
+    fountainR: 74,
+    monument: { x: x0 + w / 2, y: y0 + h * 0.2 },
+    trees: [],
+    benches: [],
+  };
+  // Trees and benches down the two flanks, clear of the fountain basin.
+  for (let k = 0; k < 3; k += 1) {
+    const off = 62 + k * 74;
+    plaza.trees.push({ x: plaza.x + off, y: plaza.y + plaza.h - 58, size: rng.range(0.95, 1.25), lean: rng.range(-0.25, 0.25) });
+    plaza.trees.push({ x: plaza.x + plaza.w - off, y: plaza.y + 58, size: rng.range(0.95, 1.25), lean: rng.range(-0.25, 0.25) });
+  }
+  for (let k = 0; k < 4; k += 1) {
+    plaza.benches.push({ x: plaza.x + 44 + k * 34, y: plaza.y + plaza.h - 24 });
+    plaza.benches.push({ x: plaza.x + plaza.w - 44 - k * 34, y: plaza.y + 24 });
+  }
+  // Lamps at the four corners of the square, and two solid props: the basin and the monument.
+  for (const sx of [-1, 1]) {
+    for (const sy of [-1, 1]) {
+      city.lamps.push({ x: x0 + w / 2 + sx * (w / 2 - 24), y: y0 + h / 2 + sy * (h / 2 - 24) });
+    }
+  }
+  const box = plaza.fountainR * 0.85;
+  city.props.push({ x: plaza.fx - box, y: plaza.fy - box, w: box * 2, h: box * 2 });
+  city.props.push({ x: plaza.monument.x - 22, y: plaza.monument.y - 22, w: 44, h: 44 });
+  return plaza;
+}
+
+/** Kerbside bays along every downtown avenue and street, thinned so the kerb is not a wall of cars. */
+function parkingSpots(cols, rows) {
+  const kerb = CITY.roadHalf - 9;
+  const clear = (value, centres) => centres.every((c) => Math.abs(value - c) > 165);
+  const spots = [];
+  for (let i = DOWNTOWN.col0; i <= DOWNTOWN.col1; i += 1) {
+    const cx = cols[i];
+    for (let y = rows[DOWNTOWN.row0] + 210; y < rows[DOWNTOWN.row1] - 130; y += 168) {
+      if (!clear(y, rows)) continue;
+      spots.push({ x: cx - kerb, y, angle: -Math.PI / 2 });
+      spots.push({ x: cx + kerb, y: y + 74, angle: Math.PI / 2 });
+    }
+  }
+  for (let j = DOWNTOWN.row0 + 1; j < DOWNTOWN.row1; j += 1) {
+    const cy = rows[j];
+    for (let x = cols[DOWNTOWN.col0] + 210; x < cols[DOWNTOWN.col1] - 130; x += 168) {
+      if (!clear(x, cols)) continue;
+      spots.push({ x, y: cy - kerb, angle: Math.PI });
+      spots.push({ x: x + 74, y: cy + kerb, angle: 0 });
+    }
+  }
+  return spots.filter((_, index) => index % 2 === 0);
+}
+
+/** True when (x, y) is in the downtown district: the tall towers the cover shot looks at. */
+export function inDowntown(city, x, y) {
+  const d = city.downtown;
+  if (!d) return false;
+  return x >= d.x0 && x <= d.x1 && y >= d.y0 && y <= d.y1;
 }
 
 /** True when (x, y) is on the asphalt of any avenue or street. */
@@ -186,6 +283,10 @@ export function isBlocked(city, x, y, radius = 0) {
   if (x < radius || y < radius || x > WORLD.width - radius || y > WORLD.height - radius) return true;
   for (const b of city.buildings) {
     if (x > b.x - radius && x < b.x + b.w + radius && y > b.y - radius && y < b.y + b.h + radius) return true;
+  }
+  // Solid street furniture: the plaza fountain and monument are as hard as a building.
+  for (const p of city.props) {
+    if (x > p.x - radius && x < p.x + p.w + radius && y > p.y - radius && y < p.y + p.h + radius) return true;
   }
   return false;
 }

@@ -158,6 +158,8 @@ function runShot(name) {
   stageShot(name, state);
   let painted = 0;
   window.__shotReady = false;
+  // The aim reads this pointer, so shots that fire or face something aim where the frame looks.
+  state.pointer = state.pointerScreen ? { ...state.pointerScreen } : { x: 760, y: 300 };
   function paint() {
     renderer.draw(state, { screen: 'play', showPrompt: false });
     painted += 1;

@@ -55,7 +55,13 @@ export function spawnParkedCar(state, near = null) {
     y = near ? clamp(near.y + rng.range(-700, 700), WORLD.coastY + 80, WORLD.height - 120) : rng.range(WORLD.coastY + 80, WORLD.height - 120);
     angle = side > 0 ? -Math.PI / 2 : Math.PI / 2;
   }
-  const car = createCar(x, y, angle, rng.pick(['sedan', 'sport', 'van']), BODY_COLORS[rng.int(BODY_COLORS.length)]);
+  return spawnParkedCarAt(state, { x, y, angle });
+}
+
+/** A car parked at an exact kerb bay, used for the downtown parking rows. */
+export function spawnParkedCarAt(state, spot) {
+  const rng = state.rng;
+  const car = createCar(spot.x, spot.y, spot.angle, rng.pick(['sedan', 'sport', 'van']), BODY_COLORS[rng.int(BODY_COLORS.length)]);
   car.parked = true;
   car.cruise = 0;
   state.cars.push(car);
@@ -66,6 +72,10 @@ export function spawnParkedCar(state, near = null) {
 export function populateTraffic(state) {
   for (let i = 0; i < TRAFFIC.count; i += 1) spawnTrafficCar(state);
   for (let i = 0; i < 40; i += 1) spawnParkedCar(state, state.player);
+  // The downtown kerbs are always lined: one car in every few bays, spread across the district.
+  const spots = state.city.parking ?? [];
+  const step = Math.max(1, Math.floor(spots.length / 26));
+  for (let i = 0; i < spots.length; i += step) spawnParkedCarAt(state, spots[i]);
 }
 
 /**

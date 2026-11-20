@@ -107,10 +107,27 @@ export function drawHud(ctx, state, view, options = {}) {
   ctx.clip();
 
   ctx.fillStyle = 'rgba(86,88,116,0.5)';
+  const down = state.city.downtown;
   for (const block of state.city.blocks) {
     const bx = cx + (block.x - state.player.x) * scale;
     const by = cy + (block.y - state.player.y) * scale;
-    ctx.fillRect(bx, by, block.w * scale, block.h * scale);
+    const inDown = down && (block.x + block.w / 2) >= down.x0 && (block.x + block.w / 2) <= down.x1
+      && (block.y + block.h / 2) >= down.y0 && (block.y + block.h / 2) <= down.y1;
+    if (inDown) {
+      ctx.fillStyle = 'rgba(122,126,168,0.85)';
+      ctx.fillRect(bx, by, block.w * scale, block.h * scale);
+      ctx.fillStyle = 'rgba(86,88,116,0.5)';
+    } else {
+      ctx.fillRect(bx, by, block.w * scale, block.h * scale);
+    }
+  }
+  // The downtown plaza reads as a lit square on the map.
+  if (down?.plaza) {
+    const p = down.plaza;
+    const bx = cx + (p.x - state.player.x) * scale;
+    const by = cy + (p.y - state.player.y) * scale;
+    ctx.fillStyle = 'rgba(144,214,214,0.9)';
+    ctx.fillRect(bx, by, Math.max(2, p.w * scale), Math.max(2, p.h * scale));
   }
   ctx.strokeStyle = 'rgba(225,232,255,0.72)';
   ctx.lineWidth = state.city.half * 2 * scale;

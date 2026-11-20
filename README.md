@@ -32,7 +32,7 @@ Five jobs chain from the safehouse through the pier, the radio tower, Club Halo 
 
 ## Under the hood
 
-`game/src/world` holds the simulation (city generation, traffic, pedestrians, the player, police, missions, gunfire), `game/src/render` draws it (streets and buildings, actors, sky, HUD, menus), and `game/src/audio`, `game/src/save` and `game/src/core` hold the sound, the save file and the shared maths. `?shot=1..4` stages one of the four screenshots instead of starting at the title.
+`game/src/world` holds the simulation (city generation, traffic, pedestrians, the player, police, missions, gunfire), `game/src/render` draws it (streets and buildings, actors, sky, HUD, menus), and `game/src/audio`, `game/src/save` and `game/src/core` hold the sound, the save file and the shared maths. The west of the grid is downtown: taller towers, kerbside parking and a plaza with a fountain. `?shot=downtown` frames the hero car mid-junction at dusk with traffic on all four approaches; `?shot=1..4` stage the other four screenshots instead of starting at the title.
 
 `main.ts` copies `game/` and `screenshots/` to the output folder and writes the dossier:
 

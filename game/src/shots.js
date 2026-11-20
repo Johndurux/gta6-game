@@ -2,7 +2,7 @@
 // moment of the game, runs the simulation forward on a scripted input, then parks it and frames the
 // camera. The same seed always gives the same picture.
 
-import { PALETTE, STEP, WORLD } from './core/config.js';
+import { DOWNTOWN, PALETTE, STEP, WORLD } from './core/config.js';
 import { createNullInput } from './core/input.js';
 import { updateWorld, teleport } from './world/world.js';
 import { createCar } from './world/traffic.js';
@@ -30,7 +30,8 @@ export function stageShot(name, state) {
   const shot = String(name);
   if (shot === '2' || shot === 'foot') stageFoot(state);
   else if (shot === '3' || shot === 'pursuit') stagePursuit(state);
-  else if (shot === '4' || shot === 'mission') stageMission(state);
+  else if (shot === '4' || shot === 'mission' || shot === 'coast') stageMission(state);
+  else if (shot === 'downtown' || shot === '5') stageDowntown(state);
   else stageCover(state);
   state.frozen = true;
   return state;
@@ -194,44 +195,120 @@ function stageCover(state) {
   frameCamera(state, 60, -156, 0.95);
 }
 
-/** Shot 2: on foot in a neon block, people about, a job marker waiting up the street. */
+/** The cover: the hero car mid-junction downtown at dusk, traffic on all four approaches. */
+function stageDowntown(state) {
+  const city = state.city;
+  const x = city.cols[DOWNTOWN.col0 + 3];
+  const y = city.rows[DOWNTOWN.row0 + 2];
+  state.tod = 0.6;
+  state.cash = 4310;
+  state.progress = 3;
+  state.wanted = 0;
+  state.heat = 0;
+  state.pickups = [];
+  state.missions.index = 2;
+  state.missions.marker = null;
+  state.missions.prompt = null;
+  state.missions.objective = { text: 'REACH THE DOWNTOWN DROP', title: 'CITY LIGHTS', stage: 2, count: 2 };
+  clearTraffic(state);
+
+  // The hero car, stopped in the middle of the junction.
+  const car = laneCar(state, x - 10, y + 12, 0.05, '#12b0c9', 'sport');
+  car.driven = true;
+  car.hp = 5;
+  state.car = car;
+  state.player.inCar = true;
+  teleport(state, car.x, car.y, 0.05);
+  car.x = x - 10;
+  car.y = y + 12;
+  car.speed = 0;
+
+  // The people of downtown first, so the streets around the junction are already busy.
+  crowd(state, 34, 820);
+  settle(state, 24);
+
+  // Traffic by hand, one car on every approach and two crossing the junction, so all four
+  // directions read at once. Nothing steps the world after this, so the frame is exactly this.
+  trafficCar(state, 'h', y + 26, x + 214, 1, '#2f6fa8', 'sedan', 120);
+  trafficCar(state, 'h', y + 26, x - 306, 1, '#d9c37a', 'van', 96);
+  trafficCar(state, 'h', y - 26, x + 304, -1, '#e0e2e6', 'sport', 104);
+  trafficCar(state, 'h', y - 26, x - 176, -1, '#3b3f4a', 'sedan', 88);
+  trafficCar(state, 'v', x + 26, y + 256, 1, '#c8402f', 'sedan', 92);
+  trafficCar(state, 'v', x + 26, y - 54, 1, '#5a2d6e', 'sedan', 112);
+  trafficCar(state, 'v', x - 26, y - 300, -1, '#2f8f6b', 'van', 84);
+  trafficCar(state, 'v', x - 26, y + 162, -1, '#8d8f96', 'sport', 100);
+
+  // Cars at the kerbs of all four blocks.
+  laneCar(state, x + 128, y + 44, 0, '#b8563a');
+  laneCar(state, x - 132, y - 44, Math.PI, '#243a5e');
+  laneCar(state, x + 44, y + 132, Math.PI / 2, '#3b3f4a');
+  laneCar(state, x - 44, y - 128, -Math.PI / 2, '#d9c37a');
+
+  // Pedestrians on each of the four corners, walking the pavement they sit on.
+  const cor = city.half + 20;
+  for (let k = 0; k < 4; k += 1) {
+    const sx = k < 2 ? -cor : cor;
+    const sy = k % 2 === 0 ? -cor : cor;
+    for (let i = 0; i < 4; i += 1) {
+      const along = -34 + i * 24;
+      if (i % 2 === 0) person(state, x + sx + along, y + sy, sx > 0 ? Math.PI : 0, { speed: 28 + i * 4 });
+      else person(state, x + sx, y + sy + along, sy > 0 ? -Math.PI / 2 : Math.PI / 2, { speed: 30 + i * 4 });
+    }
+  }
+
+  // Rubber laid down where the hero car braked into the junction.
+  for (const dy of [-10, 10]) {
+    for (let i = 0; i < 9; i += 1) addSkid(state.effects, car.x - 62 - i * 11, car.y + dy, 0.05, 3.5);
+  }
+  spawnSparks(state.effects, x + 300, y + 26, 5, '#ffd98a', 60);
+  frameCamera(state, -104, -176, 0.96);
+}
+
+/** Shot 2: on foot on a downtown sidewalk, people about, a job marker waiting on the plaza. */
 function stageFoot(state) {
   const city = state.city;
-  state.tod = 0.42;
+  const plaza = city.downtown.plaza;
+  state.tod = 0.46;
   state.cash = 2640;
   state.progress = 2;
   state.wanted = 0;
   clearTraffic(state);
-  const place = city.places.club;
-  const x = place.x + 66;
-  const y = place.y + 210;
+  const x = plaza.fx + 96;
+  const y = plaza.y + plaza.h + 14;
   teleport(state, x, y, -Math.PI / 2);
   state.missions.index = 3;
-  state.missions.marker = { x: place.x + 40, y: place.y + 40, label: 'CLUB HALO', kind: 'job', mission: 'HEAT INDEX', radius: 110 };
-  state.missions.objective = { text: 'MEET MIRA SOL AT CLUB HALO', title: 'BAD SIGNAL', stage: 2, count: 2 };
+  state.missions.marker = { x: plaza.fx - 40, y: plaza.y + 40, label: 'CITY HALL', kind: 'job', mission: 'HEAT INDEX', radius: 110 };
+  state.missions.objective = { text: 'MEET MIRA SOL AT CITY HALL', title: 'BAD SIGNAL', stage: 2, count: 2 };
   state.missions.prompt = { key: 'E', text: 'START JOB · HEAT INDEX' };
 
-  laneCar(state, x - 78, y + 40, 0, '#c8402f');
-  laneCar(state, x + 132, y + 62, 0, '#3b3f4a');
-  trafficCar(state, 'v', place.x - 26, y + 260, -1, '#2f6fa8', 'sedan', 80);
+  laneCar(state, x - 82, y + 44, 0, '#c8402f');
+  laneCar(state, x + 136, y + 44, 0, '#3b3f4a');
+  laneCar(state, plaza.x - 44, y - 6, -Math.PI / 2, '#2f6fa8');
+  trafficCar(state, 'h', plaza.y + plaza.h + 44, x + 300, -1, '#d9c37a', 'van', 80);
+  trafficCar(state, 'v', plaza.x + plaza.w + 26, y + 210, -1, '#8d8f96', 'sedan', 90);
+  // The plaza crowd, walking to and from the fountain.
+  for (let i = 0; i < 8; i += 1) {
+    person(state, plaza.fx - 150 + i * 42, plaza.fy + 118 + (i % 2) * 16, i % 2 ? Math.PI : 0, { speed: 30 + (i % 3) * 6 });
+  }
+  for (let i = 0; i < 6; i += 1) {
+    person(state, plaza.fx - 96 + i * 38, plaza.fy + 46, i % 2 ? 0.1 : Math.PI - 0.1, { speed: 26 + (i % 4) * 5 });
+  }
   person(state, x + 26, y + 26, -Math.PI / 2, { speed: 26 });
-  person(state, x - 20, y + 96, Math.PI / 2, { speed: 30 });
-  person(state, x + 70, y + 150, -Math.PI / 2, { speed: 34 });
-  person(state, x - 62, y - 40, Math.PI / 2, { speed: 28 });
-  crowd(state, 22, 520);
-  streetLife(state, 6, 700);
-  settle(state, 26, createNullInput());
+  person(state, x - 22, y + 74, Math.PI / 2, { speed: 32 });
+  person(state, x + 74, y + 30, -Math.PI / 2, { speed: 34 });
+  crowd(state, 16, 620);
+  settle(state, 22, createNullInput());
   state.player.aim = -Math.PI / 2 + 0.25;
   state.pointerScreen = { x: 760, y: 300 };
-  frameCamera(state, 0, -10, 1.08);
+  frameCamera(state, 0, -34, 1.06);
 }
 
-/** Shot 3: three stars, a cruiser on the bumper, one alongside, the avenue lit up. */
+/** Shot 3: three stars, a cruiser on the bumper, one alongside, the downtown avenue lit up. */
 function stagePursuit(state) {
   const city = state.city;
   const roadX = city.cols[5];
   const y = city.rows[4] + 30;
-  state.tod = 0.57;
+  state.tod = 0.62;
   state.cash = 5120;
   state.progress = 3;
   state.wanted = 3;
@@ -294,10 +371,10 @@ function stagePursuit(state) {
   frameCamera(state, 0, 60, 1.02);
 }
 
-/** Shot 4: a job brief at the pier, the crates waiting on the sand. */
+/** Shot 4: a job brief on the coast road at sunset, the crates waiting on the sand behind. */
 function stageMission(state) {
   const city = state.city;
-  state.tod = 0.54;
+  state.tod = 0.5;
   state.cash = 3260;
   state.progress = 2;
   state.wanted = 0;
@@ -308,15 +385,16 @@ function stageMission(state) {
   state.missions.crates = [3, 6, 9].map((col, i) => ({ x: city.cols[col], y: WORLD.beachY - 70, taken: false, phase: i }));
   state.missions.objective = { text: 'PICK UP THE CRATES ON THE BEACH', title: 'SALT & STATIC', stage: 1, count: 2 };
   const x = city.cols[5] + 60;
-  const y = WORLD.beachY - 40;
+  const y = city.rows[0] + 26;
   const car = laneCar(state, x, y, 0, '#c8402f');
   car.driven = true;
   car.hp = 5;
   state.car = car;
   state.player.inCar = true;
   teleport(state, x, y, 0);
-  laneCar(state, x + 90, y + 40, 0, '#3b3f4a');
-  laneCar(state, x - 110, y - 30, Math.PI, '#2f6fa8');
+  laneCar(state, x + 90, y + 44, 0, '#3b3f4a');
+  laneCar(state, x - 110, y + 44, 0, '#d9c37a');
+  laneCar(state, x - 210, y - 44, Math.PI, '#2f6fa8');
   person(state, x + 40, y - 30, 0, { speed: 22 });
   person(state, x + 100, y + 30, Math.PI, { speed: 26 });
   for (let i = 0; i < 5; i += 1) person(state, x - 140 + i * 60, y - 80, 0, { speed: 20 });
@@ -324,7 +402,7 @@ function stageMission(state) {
   settle(state, 8);
   openDialogue(state, def.giver, def.brief);
   state.missions.dialogue.index = 1;
-  frameCamera(state, 40, -30, 1.08);
+  frameCamera(state, 40, -50, 1.02);
 }
 
 export { startMission, startCourier, dist, PALETTE };
