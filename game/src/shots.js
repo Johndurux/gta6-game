@@ -489,6 +489,7 @@ function stageAerial(state) {
     for (let i = 0; i <= 11; i += 1) {
       const x = city.cols[i];
       const y = city.rows[j];
+      if (!inFrameX(x) || !inFrameY(y)) continue;
       person(state, x - corner, y - corner, 0, { speed: 28 });
       person(state, x + corner, y + corner, Math.PI, { speed: 34 });
       person(state, x - corner - 48, y - corner, 0, { speed: 31 });
