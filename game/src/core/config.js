@@ -1,6 +1,4 @@
-// Every tuning number, colour and place name in one file. The city is built from the grid
-// below; the camera shows a fixed 1280x720-ish window of it and everything is drawn in world
-// units, so nothing depends on the size of the browser window.
+// Every tunable in the game lives here: world and grid size, the downtown district bounds, traffic/economy/combat numbers, the palette and the place names.
 
 export const GAME_NAME = 'VELVET COAST';
 export const GAME_TAGLINE = 'Episode One · Palm Static';

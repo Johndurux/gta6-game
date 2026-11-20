@@ -1,5 +1,4 @@
-// Everything under the actors: the bay and its beach, the block grid, asphalt, paint, palms, street
-// lamps, and the buildings themselves as chunky 2.5D blocks with lit windows and neon signs.
+// Paints the ground layer the actors stand on: the bay and beach, the avenue grid with its asphalt and paint, palms and street lamps, and the 2.5D buildings with windows and neon.
 
 import { CITY, NEON_NAMES, PALETTE, WORLD } from '../core/config.js';
 import { hash01 } from '../core/math.js';

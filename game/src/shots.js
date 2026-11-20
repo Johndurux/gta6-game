@@ -1,6 +1,4 @@
-// The scenes behind ?shot=1..4 (also cover / foot / pursuit / mission). Each one sets up a real
-// moment of the game, runs the simulation forward on a scripted input, then parks it and frames the
-// camera. The same seed always gives the same picture.
+// Owns the canned screenshot scenes behind ?shot=...: each one sets up a real moment, drives the simulation with scripted input and parks the camera on a deterministic frame.
 
 import { DOWNTOWN, PALETTE, STEP, WORLD } from './core/config.js';
 import { createNullInput } from './core/input.js';

@@ -1,5 +1,4 @@
-// Traffic: park cars along the curbs, run the rest down the lanes, keep them from driving through
-// each other, the player or a red light, and recycle the ones that fall too far behind.
+// The cars that are not the player: parks them along the kerbs, drives the rest down lane by lane, keeps them out of each other, the player and red lights, and recycles stragglers.
 
 import { CAR_SIZE, CITY, TRAFFIC, WORLD } from '../core/config.js';
 import { clamp, dist } from '../core/math.js';

@@ -1,5 +1,4 @@
-// The heads-up display: a rotating-free minimap of the avenues, cash, five wanted stars, the
-// health bar, the job objective, key prompts, speed, toasts and the aim crosshair.
+// The player-facing overlay: minimap of the avenues, cash, wanted stars, health, the current objective, key prompts, speed, toasts and the aim crosshair.
 
 import { FONT, PALETTE } from '../core/config.js';
 import { clamp } from '../core/math.js';

@@ -1,8 +1,4 @@
-// The city of Velara Bay: a grid of twelve avenues by eleven streets, each block holding towers,
-// low shops or a pocket park, a palm-lined beach along the north shore and a pier over the water.
-// The west of the grid is downtown: taller towers, kerbside parking and a plaza with a fountain.
-// Build once from a seed; everything the simulation needs (colliders, road queries, lane spawns,
-// the named corners missions use) is read off the result.
+// Builds Velara Bay once from a seed — avenue/street grid, per-block towers and shops, the downtown towers, plaza and parking, the north beach and pier — and exposes the road, lane and collider queries the rest of the simulation asks it for.
 
 import { CITY, DOWNTOWN, NEON_NAMES, PALETTE, PLACES, TRAFFIC, WORLD } from '../core/config.js';
 import { clamp, hash01 } from '../core/math.js';

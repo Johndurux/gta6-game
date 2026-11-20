@@ -1,6 +1,4 @@
-// Boot and the one loop. The simulation advances in fixed 1/60 s steps whatever the display does,
-// the renderer paints what is there, and the game moves between the title, play, pause and the
-// wasted/busted cards. ?shot=1..4 stages a screenshot scene instead and freezes it.
+// Boot plus the single frame loop: fixed 1/60 s simulation steps, one render per frame, the title/play/pause cards, and the ?shot= hook that stages a screenshot scene instead.
 
 import { ECON, STEP } from './core/config.js';
 import { createInput, createNullInput } from './core/input.js';

@@ -1,3 +1,5 @@
+<!-- Front page of the repo: what Velvet Coast is, how to play it, and how main.ts packs the game, screenshots and dossier into the output folder. -->
+
 # Velvet Coast
 
 [![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
