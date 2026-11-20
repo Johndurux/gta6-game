@@ -3,7 +3,8 @@
 
 import { CITY, NEON_NAMES, PALETTE, WORLD } from '../core/config.js';
 import { hash01 } from '../core/math.js';
-import { mood, hexToRgba } from './palette.js';
+import { lightFor } from '../world/city.js';
+import { mixHex, mood, hexToRgba } from './palette.js';
 
 const glowCache = new Map();
 
@@ -239,42 +240,11 @@ export function drawStreets(ctx, state, view) {
     }
   }
 
-  // Paint: centre dashes, junction boxes, crossings.
-  ctx.strokeStyle = 'rgba(214,190,120,0.35)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([22, 26]);
-  for (const cx of city.cols) {
-    if (cx + half < left || cx - half > right) continue;
-    ctx.beginPath();
-    ctx.moveTo(cx, Math.max(WORLD.beachY + 10, top - 40));
-    ctx.lineTo(cx, Math.min(WORLD.height, bottom + 40));
-    ctx.stroke();
-  }
-  for (const cy of city.rows) {
-    if (cy + half < top || cy - half > bottom) continue;
-    ctx.beginPath();
-    ctx.moveTo(left - 40, cy);
-    ctx.lineTo(right + 40, cy);
-    ctx.stroke();
-  }
-  ctx.setLineDash([]);
-
-  ctx.fillStyle = 'rgba(255,255,255,0.12)';
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-  for (const cx of city.cols) {
-    if (cx + half < left || cx - half > right) continue;
-    for (const cy of city.rows) {
-      if (cy + half < top || cy - half > bottom) continue;
-      // Crossings on all four sides of the junction.
-      for (let k = 0; k < 5; k += 1) {
-        const off = -half + 10 + k * 18;
-        ctx.fillRect(cx + off, cy - half - 16, 10, 14);
-        ctx.fillRect(cx + off, cy + half + 2, 10, 14);
-        ctx.fillRect(cx - half - 16, cy + off, 14, 10);
-        ctx.fillRect(cx + half + 2, cy + off, 14, 10);
-      }
-    }
-  }
+  // Paint. Every avenue is a four-lane boulevard: a double-yellow centre line through the
+  // junction-to-junction stretch, a dashed white divider down each half, a white kerb line and
+  // angle-parked bays along it, then stop bars, turn arrows and crossings at each corner.
+  drawRoadPaint(ctx, city, view);
+  drawTrafficLights(ctx, state, view);
 
   // Street lamps: a pool of warm light after dark.
   const m = mood(state.tod);
@@ -290,7 +260,116 @@ export function drawStreets(ctx, state, view) {
   }
 }
 
-/** Tyre marks: two dark strokes per skid sample, fading with the rest of the list. */
+/** Street markings: the grid reads as a four-lane boulevard network, not one lane a side. */
+function drawRoadPaint(ctx, city, view) {
+  const { left, right, top, bottom } = view;
+  const half = city.half;
+  const lane = half * 0.5;
+
+  const inH = (cx) => cx + half >= left - 40 && cx - half <= right + 40;
+  const inV = (cy) => cy + half >= top - 40 && cy - half <= bottom + 40;
+
+  const dash = (x, y, dx, dy, color, w, on, off) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = w;
+    ctx.setLineDash([on, off]);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + dx, y + dy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  };
+
+  // Centre lines: double yellow down the avenue, double yellow across the street.
+  for (const cx of city.cols) {
+    if (!inH(cx)) continue;
+    const yA = Math.max(WORLD.beachY + 8, top - 60);
+    const yB = Math.min(WORLD.height, bottom + 60);
+    dash(cx - 2.5, yA, 0, yB - yA, 'rgba(210,178,72,0.55)', 2, 1, 0);
+    dash(cx + 2.5, yA, 0, yB - yA, 'rgba(210,178,72,0.55)', 2, 1, 0);
+    // Lane marker each side of the centre, dashed.
+    dash(cx - lane, yA, 0, yB - yA, 'rgba(230,232,240,0.42)', 2, 20, 18);
+    dash(cx + lane, yA, 0, yB - yA, 'rgba(230,232,240,0.42)', 2, 20, 18);
+    // Kerb lines.
+    dash(cx - half + 3, yA, 0, yB - yA, 'rgba(255,255,255,0.3)', 1.6, 34, 20);
+    dash(cx + half - 3, yA, 0, yB - yA, 'rgba(255,255,255,0.3)', 1.6, 34, 20);
+  }
+  for (const cy of city.rows) {
+    if (!inV(cy)) continue;
+    const xA = Math.max(left - 60, 0);
+    const xB = Math.min(right + 60, WORLD.width);
+    dash(xA, cy - 2.5, xB - xA, 0, 'rgba(210,178,72,0.55)', 2, 1, 0);
+    dash(xA, cy + 2.5, xB - xA, 0, 'rgba(210,178,72,0.55)', 2, 1, 0);
+    dash(xA, cy - lane, xB - xA, 0, 'rgba(230,232,240,0.42)', 2, 20, 18);
+    dash(xA, cy + lane, xB - xA, 0, 'rgba(230,232,240,0.42)', 2, 20, 18);
+    dash(xA, cy - half + 3, xB - xA, 0, 'rgba(255,255,255,0.3)', 1.6, 34, 20);
+    dash(xA, cy + half - 3, xB - xA, 0, 'rgba(255,255,255,0.3)', 1.6, 34, 20);
+  }
+
+  // Zebra crossings on every approach to every junction.
+  ctx.fillStyle = 'rgba(230,232,240,0.35)';
+  for (const cx of city.cols) {
+    if (!inH(cx)) continue;
+    for (const cy of city.rows) {
+      if (!inV(cy)) continue;
+      for (let k = 0; k < 4; k += 1) {
+        const off = -half + 12 + k * 20;
+        ctx.fillRect(cx + off, cy - half - 15, 11, 13);
+        ctx.fillRect(cx + off, cy + half + 2, 11, 13);
+        ctx.fillRect(cx - half - 15, cy + off, 13, 11);
+        ctx.fillRect(cx + half + 2, cy + off, 13, 11);
+      }
+    }
+  }
+
+  // Stop bars where an approach lane meets the crossing.
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 5;
+  for (const cx of city.cols) {
+    if (!inH(cx)) continue;
+    for (const cy of city.rows) {
+      if (!inV(cy)) continue;
+      ctx.fillRect(cx - half - 24, cy + 15, 4, half - 32);
+      ctx.fillRect(cx + half + 20, cy + 15, 4, half - 32);
+      ctx.fillRect(cx - half + 32, cy + 15, 4, half - 32);
+      ctx.fillRect(cx - half + 32, cy - half - 15, 4, half - 32);
+      ctx.fillRect(cx + half - 36, cy - half - 15, 4, half - 32);
+    }
+  }
+}
+
+/** A signal head at each corner of every junction, lit the colour traffic is seeing. */
+function drawTrafficLights(ctx, state, view) {
+  const city = state.city;
+  const { left, right, top, bottom } = view;
+  const half = city.half;
+  const m = mood(state.tod);
+  if (m.night < 0.08) return; // unlit heads just read as noise in daylight
+  for (const cx of city.cols) {
+    if (cx + half < left - 40 || cx - half > right + 40) continue;
+    for (const cy of city.rows) {
+      if (cy + half < top - 40 || cy - half > bottom + 40) continue;
+      for (let side = 0; side < 2; side += 1) {
+        const sx = cx + (side ? 1 : -1) * (half + 12);
+        const hState = lightFor(city, side === 0 ? 'h' : 'v', state.time);
+        ctx.fillStyle = '#1a1a24';
+        ctx.fillRect(sx - 1.5, cy - 4, 3, 18);
+        const lamps = hState === 'green' ? ['#33141a', '#33140d', '#3dff9a']
+          : hState === 'amber' ? ['#33141a', '#ffaa2a', '#12281d']
+          : ['#ff4a3a', '#33100d', '#12281d'];
+        for (let i = 0; i < 3; i += 1) {
+          ctx.beginPath();
+          ctx.arc(sx, cy - 2 + i * 5, 2.3, 0, Math.PI * 2);
+          ctx.fillStyle = lamps[i];
+          ctx.fill();
+        }
+        if (hState !== 'red') {
+          drawGlow(ctx, sx, cy + 3, 24, hState === 'green' ? '#4dff9a' : '#ffaa2a', 0.24);
+        }
+      }
+    }
+  }
+}
 export function drawSkids(ctx, state, view) {
   const { left, right, top, bottom } = view;
   ctx.lineCap = 'round';
@@ -309,53 +388,114 @@ export function drawSkids(ctx, state, view) {
 export function drawBuildings(ctx, state, view) {
   const { left, right, top, bottom } = view;
   const m = mood(state.tod);
+  const dusk = 0.08 + m.night * 0.12;
   const visible = [];
   for (const b of state.city.buildings) {
-    const ext = 8 + b.height * 11;
+    const ext = 14 + b.height * 28;
     if (b.x + b.w < left - 40 || b.x > right + 40) continue;
     if (b.y + b.h + 20 < top - 40 || b.y - ext - 70 > bottom + 40) continue;
     visible.push(b);
   }
   visible.sort((a, b) => (a.y + a.h) - (b.y + b.h));
 
-  // Ground shadows first, so no shadow lands on a roof in front.
-  ctx.fillStyle = 'rgba(4,4,10,0.42)';
+  // Soft ground shadows first, so no shadow lands on a roof in front.
   for (const b of visible) {
-    const ext = 8 + b.height * 11;
-    ctx.fillRect(b.x + 10, b.y + b.h - ext + 12, b.w - 4, ext + 4);
+    const ext = 14 + b.height * 28;
+    const skew = ext * 0.42;
+    const base = b.y + b.h;
+    const layers = [
+      ['rgba(4,4,10,0.30)', 8, 6, ext * 0.78],
+      ['rgba(4,4,10,0.20)', 13, 10, ext * 0.55],
+      ['rgba(4,4,10,0.10)', 17, 13, ext * 0.32],
+    ];
+    for (const [fill, ox, oy, hgt] of layers) {
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.moveTo(b.x + 4 + skew + ox, base + oy);
+      ctx.lineTo(b.x + b.w + skew + ox, base + oy);
+      ctx.lineTo(b.x + b.w + skew + ox - hgt, base + oy - hgt * 0.22);
+      ctx.lineTo(b.x + 4 + skew + ox - hgt, base + oy - hgt * 0.22);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 
   for (const b of visible) {
-    const ext = 8 + b.height * 11;
-    const wallY = b.y + b.h - ext;
-    const dark = shade(b.tone, -0.5);
-    const roofTone = shade(b.tone, 0.3 + b.height * 0.02);
+    const ext = 14 + b.height * 28;
+    const skew = ext * 0.42;
+    const base = b.y + b.h;
+    const topY = base - ext;
 
-    // Facade.
-    ctx.fillStyle = dark;
-    ctx.fillRect(b.x, wallY, b.w, ext);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(b.x, wallY, b.w, 2);
+    // Face tones: a flat tone, a side darker by a fixed factor, a roof nearer the sky.
+    let front = shade(b.tone, -0.28);
+    if (dusk > 0) front = mixHex(front, m.horizon, dusk);
+    let side = shade(b.tone, -0.28 - 0.38);
+    if (dusk > 0) side = mixHex(side, m.horizon, dusk);
+    let roofTone = shade(b.tone, 0.3 + b.height * 0.02);
+    if (dusk > 0) roofTone = mixHex(roofTone, m.horizon, dusk);
 
-    // Windows: small warm rectangles, more of them lit as the light goes.
-    const litChance = 0.18 + m.night * 0.55;
-    const cols = Math.max(2, Math.floor((b.w - 12) / 15));
-    const rows = ext > 22 ? 2 : 1;
-    const winW = Math.min(7, (b.w - 14) / cols - 4);
-    const winH = rows === 2 ? 5 : 6;
+    // Side face (east wall) first, so the front face and roof sit on top of it.
+    ctx.fillStyle = side;
+    ctx.beginPath();
+    ctx.moveTo(b.x + b.w, base);
+    ctx.lineTo(b.x + b.w, b.y);
+    ctx.lineTo(b.x + b.w + skew, b.y - ext);
+    ctx.lineTo(b.x + b.w + skew, base - ext);
+    ctx.closePath();
+    ctx.fill();
+    // A crisp edge where the side meets the front, and a darker seam at the base.
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(b.x + b.w, base);
+    ctx.lineTo(b.x + b.w + skew, base - ext);
+    ctx.stroke();
+
+    // Front face.
+    ctx.fillStyle = front;
+    ctx.beginPath();
+    ctx.moveTo(b.x, base);
+    ctx.lineTo(b.x + b.w, base);
+    ctx.lineTo(b.x + b.w + skew, topY);
+    ctx.lineTo(b.x + skew, topY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(b.x, base - 2, b.w + skew, 2);
+
+    // Windows: a grid of small quads riding the face's lean, mostly lit with a few dark cells.
+    const litChance = 0.34 + m.night * 0.5;
+    const cols = Math.max(2, Math.floor((b.w - 14) / 15));
+    const rows = ext > 24 ? 4 : ext > 14 ? 3 : 2;
+    const winW = Math.min(7, (b.w - 16) / cols - 4);
+    const winH = Math.min(9, ext / rows - 3);
+    const colStep = (b.w - 16) / cols;
     for (let r = 0; r < rows; r += 1) {
+      const f = 0.12 + (r / rows) * 0.76;
+      const wy = topY + ext * f;
+      const lean = skew * f;
       for (let c = 0; c < cols; c += 1) {
         const h = hash01(b.seed, c, r);
-        if (h > litChance) continue;
-        const x = b.x + 8 + c * ((b.w - 16) / cols);
-        const y = wallY + 5 + r * (ext / rows);
-        ctx.fillStyle = h > 0.82 ? 'rgba(255,240,210,0.95)' : 'rgba(255,196,120,0.72)';
-        ctx.fillRect(x, y, winW, winH);
+        if (h > 0.96) continue;
+        const lit = h <= litChance;
+        const wx = b.x + 8 + c * colStep;
+        ctx.fillStyle = lit ? (h > 0.86 ? 'rgba(255,240,210,0.95)' : 'rgba(255,196,120,0.72)')
+          : 'rgba(8,10,16,0.55)';
+        ctx.beginPath();
+        ctx.moveTo(wx + lean, wy);
+        ctx.lineTo(wx + lean + winW, wy + Math.max(1.5, lean * 0.08));
+        ctx.lineTo(wx + lean + winW, wy + winH);
+        ctx.lineTo(wx + lean, wy + winH);
+        ctx.closePath();
+        ctx.fill();
       }
     }
 
-    // Roof: a tarred deck inside a parapet.
-    const rx = b.x;
+    // Roof: a tarred deck inside a parapet, the footprint pushed up and over.
+    const rx = b.x + skew;
     const ry = b.y - ext;
     ctx.fillStyle = roofTone;
     ctx.fillRect(rx, ry, b.w, b.h);
@@ -442,14 +582,14 @@ export function drawBuildings(ctx, state, view) {
     // Neon: a sign band above the shopfront, and an edge light on some roofs.
     if (b.shop && b.w > 60) {
       const bandW = Math.min(b.w - 16, 120);
-      const bx = b.x + 8;
-      const by = wallY + ext - 11;
+      const bx = b.x + skew * 0.35;
+      const by = base - 11;
       ctx.fillStyle = hexToRgba(b.neon, 0.9);
       ctx.fillRect(bx, by, bandW, 3);
       drawGlow(ctx, bx + bandW / 2, by, Math.max(28, bandW * 0.5), b.neon, 0.32 + m.night * 0.3);
       drawGlow(ctx, bx + bandW / 2, by + 20, Math.max(40, bandW * 0.7), b.neon, 0.1 + m.night * 0.16);
       if (b.label && b.w > 92) {
-        ctx.font = `700 8px "Segoe UI", Arial, sans-serif`;
+        ctx.font = '700 8px "Segoe UI", Arial, sans-serif';
         ctx.fillStyle = hexToRgba(b.neon, 0.95);
         ctx.textAlign = 'left';
         ctx.fillText(b.label.toUpperCase(), bx + 2, by - 3);
@@ -458,7 +598,7 @@ export function drawBuildings(ctx, state, view) {
     if (b.height > 1.3) {
       ctx.strokeStyle = hexToRgba(b.neon, 0.25 + m.night * 0.5);
       ctx.lineWidth = 1.4;
-      ctx.strokeRect(b.x + 2, b.y - ext + 2, b.w - 4, b.h - 4);
+      ctx.strokeRect(rx + 2, ry + 2, b.w - 4, b.h - 4);
     }
   }
 
