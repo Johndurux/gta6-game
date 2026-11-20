@@ -30,6 +30,7 @@ export function stageShot(name, state) {
   else if (shot === '3' || shot === 'pursuit') stagePursuit(state);
   else if (shot === '4' || shot === 'mission' || shot === 'coast') stageMission(state);
   else if (shot === 'downtown' || shot === '5') stageDowntown(state);
+  else if (shot === '6' || shot === 'aerial') stageAerial(state);
   else stageCover(state);
   state.frozen = true;
   return state;
@@ -401,6 +402,142 @@ function stageMission(state) {
   openDialogue(state, def.giver, def.brief);
   state.missions.dialogue.index = 1;
   frameCamera(state, 40, -50, 1.02);
+}
+
+/**
+ * Shot 6: the aerial. The camera hangs back over the bay at dusk so the grid reads whole in one
+ * frame: the water and the sand along the top edge, nine avenues by four streets of blocks below
+ * it, traffic down every lane in both directions, cruisers working the downtown blocks and the HUD
+ * over the top. Only what lands inside the frame is placed, so the shot stays cheap to paint.
+ */
+const AERIAL = { zoom: 0.33, x: 2610, y: 1290 };
+
+function stageAerial(state) {
+  const city = state.city;
+  const zoom = AERIAL.zoom;
+  const camX = AERIAL.x;
+  const camY = AERIAL.y;
+  const halfW = 640 / zoom;
+  const halfH = 360 / zoom;
+  const inFrameX = (x) => x > camX - halfW - 80 && x < camX + halfW + 80;
+  const inFrameY = (y) => y > camY - halfH - 80 && y < camY + halfH + 80;
+  state.tod = 0.52;
+  state.cash = 4875;
+  state.progress = 3;
+  state.wanted = 2;
+  state.heat = 2;
+  state.evadeTimer = 0;
+  state.pickups = [];
+  state.toasts = [];
+  state.missions.index = 3;
+  state.missions.prompt = null;
+  const plaza = city.downtown.plaza;
+  state.missions.marker = { x: plaza.fx, y: plaza.y - 30, label: 'CITY HALL', kind: 'job', mission: 'HEAT INDEX', radius: 110 };
+  state.missions.objective = { text: 'CRUISE THE CITY · THE JOB IS MARKED ON THE MAP', title: 'CITY LIGHTS', stage: 2, count: 5 };
+
+  // The kerbside cars the city already parked along the downtown bays stay; the loose cruisers go,
+  // so every lane in the frame below is placed by hand and lands exactly where the frame shows it.
+  state.cars = state.cars.filter((c) => c.alive && c.parked);
+  state.peds = [];
+
+  const colors = ['#c8402f', '#2f6fa8', '#d9c37a', '#3b3f4a', '#e0e2e6', '#5a2d6e', '#2f8f6b', '#b8563a', '#8d8f96', '#243a5e'];
+  const kinds = ['sedan', 'sedan', 'sedan', 'van', 'sport'];
+  let n = 0;
+  const next = () => {
+    const color = colors[(n * 7) % colors.length];
+    const kind = kinds[(n * 3) % kinds.length];
+    n += 1;
+    return [color, kind];
+  };
+
+  // Both lanes of every street in frame, spaced unevenly so the traffic reads as moving, not parked.
+  for (let j = 0; j <= 5; j += 1) {
+    const row = city.rows[j];
+    for (const dir of [1, -1]) {
+      let x = camX - halfW + ((j * 173 + (dir > 0 ? 40 : 220)) % 300);
+      while (x < camX + halfW) {
+        const [color, kind] = next();
+        trafficCar(state, 'h', row + dir * 26, x, dir, color, kind, 45 + (n * 37) % 85);
+        x += 205 + ((n * 97) % 120);
+      }
+    }
+  }
+  // And both lanes of every avenue, kept south of the sand.
+  for (let i = 0; i <= 11; i += 1) {
+    const col = city.cols[i];
+    for (const dir of [1, -1]) {
+      let y = Math.max(WORLD.beachY + 44, camY - halfH + ((i * 121 + (dir > 0 ? 0 : 160)) % 280));
+      while (y < camY + halfH) {
+        const [color, kind] = next();
+        trafficCar(state, 'v', col + dir * 26, y, dir, color, kind, 45 + (n * 37) % 85);
+        y += 215 + ((n * 97) % 115);
+      }
+    }
+  }
+
+  // Three cruisers working the downtown blocks, lights turning: the ambience the aerial needs.
+  for (const [ci, rj, siren] of [[1, 2, 0.2], [4, 3, 0.55], [7, 1, 0.85]]) {
+    const cop = laneCar(state, city.cols[ci] + 26, city.rows[rj] - 26, Math.PI, '#e9edf5', 'police');
+    cop.police = true;
+    cop.hp = 3;
+    cop.siren = siren;
+  }
+
+  // Pedestrians on the pavements at every junction in frame, walking their own side of it.
+  const corner = city.half + 20;
+  for (let j = 0; j <= 5; j += 1) {
+    for (let i = 0; i <= 11; i += 1) {
+      const x = city.cols[i];
+      const y = city.rows[j];
+      person(state, x - corner, y - corner, 0, { speed: 28 });
+      person(state, x + corner, y + corner, Math.PI, { speed: 34 });
+      person(state, x - corner - 48, y - corner, 0, { speed: 31 });
+      if ((i + j) % 2 === 0) person(state, x + corner, y - corner, Math.PI / 2, { speed: 26 });
+      person(state, x + corner, y + corner + 56, -Math.PI / 2, { speed: 30 });
+    }
+  }
+
+  // Swell lines and foam over the bay, so the water along the top edge reads as water, not sky.
+  for (let i = 0; i < 5; i += 1) {
+    state.effects.particles.push({
+      x: camX - halfW * 0.8 + i * (halfW * 0.4), y: WORLD.coastY - 130 - (i % 3) * 70,
+      vx: 0, vy: 0, life: 0.55, max: 1, size: 150 + (i % 2) * 40, color: i % 2 ? '#3fa8cc' : '#2f7fb0', kind: 'flash', drag: 0,
+    });
+  }
+  for (let row = 0; row < 9; row += 1) {
+    const y = WORLD.coastY - 22 - row * 40;
+    for (let i = 0; i < 26; i += 1) {
+      state.effects.particles.push({
+        x: camX - halfW * 0.94 + ((i + (row % 2) * 0.5) / 25) * halfW * 1.88,
+        y: y + ((i * 7 + row) % 5) - 2, vx: 0, vy: 0, life: 1, max: 1,
+        size: 24 + ((i * 13 + row * 5) % 26), color: `rgba(210,238,255,${0.22 + (row % 3) * 0.14})`, kind: 'stain', drag: 0,
+      });
+    }
+  }
+  // The surf where the bay meets the sand.
+  for (let i = 0; i < 30; i += 1) {
+    const x = camX - halfW * 0.94 + (i / 29) * halfW * 1.88;
+    state.effects.particles.push({ x, y: WORLD.coastY - 5 - (i % 3) * 10, vx: 0, vy: 0, life: 0.85, max: 1, size: 22 + (i % 4) * 9, color: 'rgba(238,250,255,0.7)', kind: 'stain', drag: 0 });
+  }
+
+  // The hero car on the boulevard, mid-block and heading east along the front.
+  const car = laneCar(state, city.cols[5] + 40, city.rows[1] + 26, 0, '#12b0c9', 'sport');
+  car.driven = true;
+  car.hp = 5;
+  car.speed = 300;
+  car.vx = 300;
+  state.car = car;
+  state.player.inCar = true;
+  teleport(state, car.x, car.y, 0);
+  car.x = city.cols[5] + 40;
+  car.y = city.rows[1] + 26;
+  // Rolling east along the front, so the HUD reads a speed and the frame reads mid-motion.
+  car.vx = 300;
+  car.speed = 300;
+  // Rubber already laid down behind it.
+  for (let i = 0; i < 12; i += 1) addSkid(state.effects, car.x - 96 - i * 13, car.y + 9, 0, 3.2);
+
+  frameCamera(state, camX - state.player.x, camY - state.player.y, zoom);
 }
 
 export { startMission, startCourier, dist, PALETTE };
