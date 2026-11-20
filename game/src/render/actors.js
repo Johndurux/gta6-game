@@ -79,15 +79,39 @@ export function drawCar(ctx, car, state) {
   ctx.fillRect(-len / 2 + 1, wid / 2 - 7, 2, 4);
 
   if (car.police) {
-    ctx.fillStyle = '#101018';
-    ctx.fillRect(-4, -wid / 2 + 2, 10, 6);
+    // A roof bar that reads at any zoom: a dark housing, both lenses lit, and the colour thrown on
+    // the tarmac round the car, alternating red and blue on the siren's own clock.
+    ctx.fillStyle = '#0d0d14';
+    roundRect(ctx, -8, -wid / 2 + 1, 17, 8, 2);
+    ctx.fill();
     const flash = Math.sin(state.time * 14 + (car.siren ?? 0) * 6) > 0;
-    ctx.fillStyle = flash ? '#ff2d4a' : '#3a5bff';
-    ctx.fillRect(-3, -wid / 2 + 3, 8, 4);
-    drawGlow(ctx, 0, 0, 74, flash ? '#ff2d4a' : '#3a5bff', 0.55);
-    drawGlow(ctx, flash ? 4 : -4, 0, 36, flash ? '#ff2d4a' : '#5b7bff', 0.8);
+    ctx.fillStyle = flash ? '#ff2d4a' : '#1b2340';
+    ctx.fillRect(-7, -wid / 2 + 2, 7, 6);
+    ctx.fillStyle = flash ? '#1b2340' : '#3a5bff';
+    ctx.fillRect(1, -wid / 2 + 2, 7, 6);
+    ctx.fillStyle = '#f2f4ff';
+    ctx.fillRect(-8, wid / 2 - 8, 16, 3);
+    drawGlow(ctx, 0, 0, 86, flash ? '#ff2d4a' : '#3a5bff', 0.6);
+    drawGlow(ctx, flash ? 5 : -5, 0, 40, flash ? '#ff2d4a' : '#5b7bff', 0.85);
   }
   ctx.restore();
+
+  // The light bar's colour on the road under the cruiser, so a chase reads from any camera.
+  if (car.police) {
+    const flash = Math.sin(state.time * 14 + (car.siren ?? 0) * 6) > 0;
+    ctx.save();
+    ctx.translate(car.x, car.y);
+    ctx.globalCompositeOperation = 'lighter';
+    const halo = ctx.createRadialGradient(0, 0, 4, 0, 0, 96);
+    halo.addColorStop(0, flash ? 'rgba(255,45,74,0.5)' : 'rgba(58,91,255,0.5)');
+    halo.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(0, 0, 96, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+  }
 
   // Headlight cones after dark.
   if (m.night > 0.12) {
@@ -179,6 +203,30 @@ export function drawPed(ctx, ped, state) {
     ctx.strokeRect(-7.4, -8, 14.8, 16);
   }
   ctx.restore();
+
+  // Scattering: a pedestrian running from a car gets the panic mark and dust off the heels, so a
+  // crowd breaking up reads in a still frame.
+  if (ped.state === 'flee') {
+    ctx.save();
+    ctx.translate(ped.x, ped.y);
+    ctx.font = '700 13px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillText('!', 1, -20);
+    ctx.fillStyle = '#ffd24a';
+    ctx.fillText('!', 0, -21);
+    ctx.textAlign = 'left';
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#cfc8c0';
+    const backX = -Math.cos(ped.angle) * 12;
+    const backY = -Math.sin(ped.angle) * 12;
+    ctx.beginPath();
+    ctx.arc(backX, backY + 3, 4.5, 0, Math.PI * 2);
+    ctx.arc(backX * 1.7, backY * 1.7 + 3, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
 }
 
 export function drawPlayer(ctx, state) {

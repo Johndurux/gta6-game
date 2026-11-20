@@ -28,13 +28,15 @@ Then walk out of the safehouse, press **E** at the car, and look for the gold ma
 | `Space` | handbrake (and hold a drift), or skip a line of dialogue |
 | mouse | aim |
 | left click / `J` | fire |
-| `Esc` | pause, save, and the controls |
+| `M` / `Esc` | pause, save, and restart back to the title |
 
-Five jobs chain from the safehouse through the pier, the radio tower, Club Halo and the hilltop, each with a brief, an objective, a marker and a cash reward. Between them the city pays for itself: cash drops on street corners, a repeatable courier run from the dockside depot, and whatever a stolen car is worth to the police. Cash, story progress and the place you left the car in are saved to `localStorage` after every job and in the pause menu.
+Five jobs chain from the safehouse through the pier, the radio tower, Club Halo and the hilltop, each with a brief, an objective, a marker and a cash reward; every job that pays is listed with its payout in the HUD's JOBS PAID card. Between them the city pays for itself: cash drops on street corners, a repeatable courier run from the dockside depot, and whatever a stolen car is worth to the police. Cash, story progress and the place you left the car in are saved to `localStorage` after every job and in the pause menu.
 
 ## Under the hood
 
-`game/src/world` holds the simulation (city generation, traffic, pedestrians, the player, police, missions, gunfire), `game/src/render` draws it (streets and buildings, actors, sky, HUD, menus), and `game/src/audio`, `game/src/save` and `game/src/core` hold the sound, the save file and the shared maths. The west of the grid is downtown: taller towers, kerbside parking and a plaza with a fountain. `?shot=downtown` frames the hero car mid-junction at dusk with traffic on all four approaches; `?shot=1..4` stage the other four screenshots instead of starting at the title.
+`game/src/world` holds the simulation (city generation, traffic, pedestrians, the player, police, missions, gunfire), `game/src/render` draws it (streets and buildings, actors, sky, HUD, menus), and `game/src/audio`, `game/src/save` and `game/src/core` hold the sound, the save file and the shared maths. The west of the grid is downtown: taller towers, kerbside parking and a plaza with a fountain.
+
+`?shot=` stages one deterministic scene instead of starting at the title, which is how the four screenshots are made: `?shot=cover` drives a downtown avenue at dusk (screenshot 1), `?shot=start` is the title card (2), `?shot=pursuit` is a three-star chase (3), `?shot=foot` is the waterfront pavement on foot (4), and `?shot=mission`, `?shot=beach` and `?shot=aerial` stage the job brief, the beach and the whole-grid aerial.
 
 `main.ts` copies `game/` and `screenshots/` to the output folder and writes the dossier:
 

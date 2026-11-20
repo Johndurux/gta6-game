@@ -6,7 +6,7 @@ import { createWorld, updateWorld, teleport } from './world/world.js';
 import { advanceDialogue, handleUse, initMissions } from './world/missions.js';
 import { createRenderer } from './render/renderer.js';
 import { readSave, writeSave } from './save/save.js';
-import { stageShot } from './shots.js';
+import { stageShot, shotUi } from './shots.js';
 
 /** A frame longer than this is a stall (a hidden tab, a breakpoint), not time to catch up on. */
 const MAX_FRAME = 0.25;
@@ -77,7 +77,7 @@ function pauseAction() {
   } else {
     ui.screen = 'title';
     ui.hasSave = Boolean(readSave());
-    announce('Title screen.');
+    announce('Restarted. Back on the title screen.');
   }
 }
 
@@ -154,12 +154,15 @@ function runGame() {
 
 function runShot(name) {
   stageShot(name, state);
+  // The scene decides its own overlay: the title shot draws the title card, the foot shot keeps the
+  // key prompt that the frame is meant to prove.
+  const shotOverlay = shotUi(name);
   let painted = 0;
   window.__shotReady = false;
   // The aim reads this pointer, so shots that fire or face something aim where the frame looks.
   state.pointer = state.pointerScreen ? { ...state.pointerScreen } : { x: 760, y: 300 };
   function paint() {
-    renderer.draw(state, { screen: 'play', showPrompt: false });
+    renderer.draw(state, shotOverlay);
     painted += 1;
     if (painted >= 3) window.__shotReady = true;
     requestAnimationFrame(paint);

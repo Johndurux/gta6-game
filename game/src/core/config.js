@@ -2,6 +2,8 @@
 
 export const GAME_NAME = 'VELVET COAST';
 export const GAME_TAGLINE = 'Episode One · Palm Static';
+/** The one-liner the title screen promises: what you do in this city, in a single line. */
+export const GAME_HOOK = 'Jack a car, work the job list, and lose the heat across one neon bay.';
 
 /** Fixed simulation step: 60 updates a second whatever the display's refresh rate. */
 export const STEP = 1 / 60;
@@ -151,6 +153,9 @@ export const PLACES = {
   tower: { col: 9, row: 4, label: 'RADIO TOWER' },
   club: { col: 6, row: 6, label: 'CLUB HALO' },
   observatory: { col: 9, row: 9, label: 'HILLTOP' },
+  /** Where a night ends: the precinct you are released from, and the hospital you wake up in. */
+  station: { col: 4, row: 1, label: 'VELARA BAY PD' },
+  hospital: { col: 2, row: 4, label: 'MERCY GENERAL' },
 };
 
 export const SAVE_KEY = 'velvet-coast.save.v1';

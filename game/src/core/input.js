@@ -8,7 +8,7 @@ const ONE_SHOT = {
   KeyE: 'use',
   Space: 'space',
   KeyR: 'radio',
-  KeyM: 'map',
+  KeyM: 'pause',
   KeyF: 'fire',
 };
 

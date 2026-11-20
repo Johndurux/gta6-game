@@ -236,7 +236,9 @@ export function updateCamera(state, dt) {
 
 function respawnPlayer(state) {
   const busted = state.lastPhase === 'busted';
-  const place = busted ? state.city.places.tower : state.city.places.home;
+  // Busted is served at the precinct, wasted wakes up at the hospital: two different places, so the
+  // screenshot and the HUD can say which one it was.
+  const place = busted ? state.city.places.station : state.city.places.hospital;
   const player = state.player;
   if (state.car) {
     state.car.driven = false;
@@ -261,7 +263,10 @@ function respawnPlayer(state) {
   state.evadeTimer = 0;
   state.camera.x = player.x;
   state.camera.y = player.y;
-  state.toast(busted ? `BUSTED · FEE $${ECON.wastedFee}` : `WASTED · FEE $${ECON.wastedFee}`, PALETTE.neonPink);
+  state.toast(
+    busted ? `RELEASED · ${place.label} · FEE $${ECON.wastedFee}` : `WAKING UP · ${place.label} · FEE $${ECON.wastedFee}`,
+    PALETTE.neonPink,
+  );
   writeSave(state);
 }
 

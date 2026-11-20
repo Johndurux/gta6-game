@@ -41,7 +41,8 @@ export function drawHud(ctx, state, view, options = {}) {
   ctx.textAlign = 'left';
   ctx.font = `700 11px ${FONT}`;
   ctx.fillStyle = PALETTE.neonAmber;
-  ctx.fillText(objective ? `JOB ${objective.stage} OF ${objective.count} · ${objective.title}` : 'VELARA BAY · FREE ROAM', 26, 34);
+  const order = objective?.order ?? Math.min(state.missions.index + 1, state.missions.total ?? 5);
+  ctx.fillText(objective ? `JOB ${order} OF ${state.missions.total ?? 5} · ${objective.title}` : 'VELARA BAY · FREE ROAM', 26, 34);
   ctx.font = `600 15px ${FONT}`;
   ctx.fillStyle = '#f6f2ea';
   const line = objective ? objective.text : 'Find a gold marker and press E to start a job';
@@ -52,6 +53,28 @@ export function drawHud(ctx, state, view, options = {}) {
   for (let i = 0; i < 5; i += 1) {
     ctx.fillStyle = i < state.progress ? PALETTE.neonAmber : 'rgba(255,255,255,0.18)';
     ctx.fillRect(26 + i * 14, 74, 9, 4);
+  }
+  // The payslips for the jobs already finished, with what each one paid, on their own dark card so
+  // the list reads against a lit street.
+  const ledger = state.missions.ledger ?? [];
+  if (ledger.length) {
+    const cardW = 236;
+    const cardH = 16 + ledger.slice(-3).length * 14;
+    ctx.fillStyle = 'rgba(8,8,16,0.5)';
+    ctx.beginPath();
+    ctx.roundRect(20, 82, cardW, cardH, 6);
+    ctx.fill();
+    ctx.font = `700 9px ${FONT}`;
+    ctx.fillStyle = PALETTE.hudInk;
+    ctx.fillText('JOBS PAID', 26, 95);
+    ledger.slice(-3).forEach((row, i) => {
+      const ly = 108 + i * 14;
+      ctx.font = `600 10px ${FONT}`;
+      ctx.fillStyle = 'rgba(244,241,234,0.85)';
+      ctx.fillText(`JOB ${row.order} · ${row.title}`, 26, ly);
+      ctx.fillStyle = PALETTE.cash;
+      ctx.fillText(`+$${row.reward.toLocaleString('en-US')}`, 26 + 148, ly);
+    });
   }
 
   // --- Cash, stars, clock, top right --------------------------------------
@@ -66,32 +89,43 @@ export function drawHud(ctx, state, view, options = {}) {
   ctx.fillStyle = PALETTE.hudDim;
   ctx.fillText('CASH', w - 26, 60);
 
+  // The wanted stars, on their own card with the label, so the row still reads in a still frame.
+  ctx.fillStyle = 'rgba(8,8,16,0.5)';
+  ctx.beginPath();
+  ctx.roundRect(w - 200, 66, 174, 32, 6);
+  ctx.fill();
+  ctx.font = `700 9px ${FONT}`;
+  ctx.fillStyle = PALETTE.hudInk;
+  ctx.textAlign = 'left';
+  ctx.fillText('WANTED', w - 192, 87);
+  ctx.textAlign = 'right';
   for (let i = 0; i < 5; i += 1) {
     const lit = i < state.wanted;
-    const x = w - 26 - (4 - i) * 22 - 9;
-    const y = 78;
+    const x = w - 30 - (4 - i) * 22 - 9;
+    const y = 84;
     if (lit) {
       drawStar(ctx, x, y, 8.5, PALETTE.wanted);
       ctx.globalAlpha = 0.25 + 0.2 * Math.sin(state.time * 6 + i);
       drawStar(ctx, x, y, 12, PALETTE.wanted);
       ctx.globalAlpha = 1;
     } else {
-      drawStar(ctx, x, y, 8.5, 'rgba(255,255,255,0.16)');
+      drawStar(ctx, x, y, 8.5, 'rgba(255,255,255,0.3)');
     }
   }
   ctx.textAlign = 'right';
   if (state.wanted > 0) {
     const hot = state.evadeTimer < 0.4;
+    const units = state.cars.filter((c) => c.police && c.alive).length || state.wanted;
     ctx.font = `700 12px ${FONT}`;
     ctx.fillStyle = hot ? '#ff5b7a' : PALETTE.neonGreen;
-    ctx.fillText(hot ? 'IN PURSUIT' : 'EVADING', w - 26, 104);
+    ctx.fillText(hot ? `IN PURSUIT · ${units} UNIT${units === 1 ? '' : 'S'}` : 'EVADING · STAY OUT OF SIGHT', w - 26, 116);
     ctx.font = `600 10px ${FONT}`;
     ctx.fillStyle = PALETTE.hudDim;
-    ctx.fillText(`${clockLabel(state.tod)}  ·  ${m.night > 0.5 ? 'NIGHT' : 'GOLDEN HOUR'}`, w - 26, 120);
+    ctx.fillText(`${clockLabel(state.tod)}  ·  ${m.night > 0.5 ? 'NIGHT' : 'GOLDEN HOUR'}`, w - 26, 132);
   } else {
     ctx.font = `600 11px ${FONT}`;
     ctx.fillStyle = PALETTE.hudDim;
-    ctx.fillText(`${clockLabel(state.tod)}  ·  ${m.night > 0.5 ? 'NIGHT' : 'GOLDEN HOUR'}`, w - 26, 102);
+    ctx.fillText(`${clockLabel(state.tod)}  ·  ${m.night > 0.5 ? 'NIGHT' : 'GOLDEN HOUR'}`, w - 26, 116);
   }
 
   // --- Minimap, bottom left ------------------------------------------------

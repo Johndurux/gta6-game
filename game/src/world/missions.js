@@ -94,6 +94,7 @@ export const MISSIONS = [
 export function createMissionState() {
   return {
     index: 0,
+    total: MISSIONS.length,
     active: null,
     marker: null,
     dialogue: null,
@@ -107,6 +108,8 @@ export function createMissionState() {
     courier: null,
     pickupTimer: 0,
     completed: 0,
+    /** The payslips: one line per job passed, kept for the HUD's paid-so-far list. */
+    ledger: [],
   };
 }
 
@@ -228,7 +231,10 @@ function refreshObjective(state) {
   const def = m.active.def;
   const obj = def.objectives[m.active.stage];
   if (!obj) return;
-  m.objective = { text: obj.text, title: def.title, stage: m.active.stage + 1, count: def.objectives.length };
+  m.objective = {
+    text: obj.text, title: def.title, order: m.index + 1,
+    stage: m.active.stage + 1, count: def.objectives.length,
+  };
   if (obj.type === 'goto') {
     const place = state.city.places[obj.place];
     m.marker = place ? { x: place.x, y: place.y, label: place.label, kind: 'goal', radius: obj.radius ?? 90 } : null;
@@ -278,9 +284,12 @@ function completeObjective(state) {
 function passMission(state) {
   const m = state.missions;
   const def = m.active.def;
+  const order = m.index + 1;
   state.cash += def.reward;
   state.stats.missions += 1;
   m.completed += 1;
+  m.ledger.push({ order, title: def.title, reward: def.reward });
+  if (m.ledger.length > 5) m.ledger.shift();
   m.index = Math.min(MISSIONS.length, m.index + 1);
   state.progress = m.index;
   m.active = null;
@@ -291,7 +300,7 @@ function passMission(state) {
   m.marker = giverMarker(state);
   m.banner = {
     text: 'JOB PASSED',
-    sub: `${def.title}   +$${def.reward.toLocaleString('en-US')}`,
+    sub: `JOB ${order} · ${def.title}   +$${def.reward.toLocaleString('en-US')}`,
     life: 5,
     color: PALETTE.neonAmber,
   };

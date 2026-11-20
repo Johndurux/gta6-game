@@ -1,8 +1,9 @@
 // The frames around the game: the title over a live, dimmed city, the pause menu, the mission
 // dialogue with drawn portraits, the job-passed banner and the wasted/busted cards.
 
-import { FONT, GAME_NAME, GAME_TAGLINE, PALETTE } from '../core/config.js';
+import { FONT, GAME_HOOK, GAME_NAME, GAME_TAGLINE, PALETTE } from '../core/config.js';
 import { clamp } from '../core/math.js';
+import { MISSIONS } from '../world/missions.js';
 import { mood, mixHex } from './palette.js';
 import { drawStar } from './hud.js';
 
@@ -55,7 +56,7 @@ export function drawTitle(ctx, state, view, options) {
   ctx.fillRect(0, h * 0.55, w, h * 0.45);
 
   const left = 78;
-  let y = h * 0.3;
+  let y = h * 0.28;
   ctx.textAlign = 'left';
   ctx.font = `700 13px ${FONT}`;
   ctx.fillStyle = PALETTE.neonCyan;
@@ -65,32 +66,47 @@ export function drawTitle(ctx, state, view, options) {
   grad.addColorStop(0, '#ffe6b8');
   grad.addColorStop(0.45, mixHex(m.horizon, '#ffffff', 0.25));
   grad.addColorStop(1, '#ff4f8b');
-  ctx.font = `800 88px ${FONT}`;
+  ctx.font = `800 86px ${FONT}`;
   ctx.fillStyle = grad;
   ctx.fillText('VELVET', left, y + 10);
   ctx.fillText('COAST', left, y + 92);
   ctx.fillStyle = 'rgba(255,79,139,0.85)';
   ctx.fillRect(left + 4, y + 112, 250, 3);
+
+  // The hook, the season label, then the promise that the game is waiting for you.
   ctx.font = `600 15px ${FONT}`;
   ctx.fillStyle = 'rgba(240,236,228,0.72)';
-  ctx.fillText(GAME_TAGLINE, left + 4, y + 140);
+  ctx.fillText(GAME_TAGLINE, left + 4, y + 134);
+  ctx.font = `700 16px ${FONT}`;
+  ctx.fillStyle = '#f7f3ea';
+  ctx.fillText(GAME_HOOK, left + 4, y + 160);
+  ctx.font = `600 11px ${FONT}`;
+  ctx.fillStyle = PALETTE.hudDim;
+  ctx.fillText('FIVE JOBS · ONE CITY · WALK IT OR DRIVE IT · SAVES IN THIS BROWSER', left + 4, y + 182);
 
   const pulse = 0.6 + 0.4 * Math.sin(state.time * 3);
   ctx.globalAlpha = pulse;
-  ctx.font = `700 16px ${FONT}`;
+  ctx.font = `800 24px ${FONT}`;
   ctx.fillStyle = '#ffffff';
-  ctx.fillText('PRESS ENTER TO START', left + 4, y + 196);
+  ctx.fillText('PRESS START', left + 4, y + 226);
   ctx.globalAlpha = 1;
+  ctx.fillStyle = PALETTE.neonPink;
+  ctx.fillRect(left + 4, y + 236, 186, 2);
+  ctx.font = `600 12px ${FONT}`;
+  ctx.fillStyle = 'rgba(240,236,228,0.6)';
+  ctx.fillText('ENTER', left + 4, y + 258);
+  ctx.fillStyle = 'rgba(240,236,228,0.4)';
+  ctx.fillText('or click, to begin · walk, drive, and take the first job', left + 66, y + 258);
   ctx.font = `600 12px ${FONT}`;
   ctx.fillStyle = options.hasSave ? 'rgba(240,236,228,0.85)' : 'rgba(240,236,228,0.3)';
-  ctx.fillText(options.hasSave ? 'C  ·  CONTINUE FROM YOUR LAST SAVE' : 'C  ·  NO SAVE YET', left + 4, y + 220);
+  ctx.fillText(options.hasSave ? 'C  ·  CONTINUE FROM YOUR LAST SAVE' : 'C  ·  NO SAVE YET', left + 4, y + 280);
 
   // Controls panel on the right.
   const px = w - 372;
-  const py = h * 0.3 - 40;
+  const py = h * 0.28 - 40;
   ctx.fillStyle = 'rgba(6,6,14,0.55)';
   ctx.beginPath();
-  ctx.roundRect(px, py, 302, 268, 10);
+  ctx.roundRect(px, py, 302, 292, 10);
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.1)';
   ctx.stroke();
@@ -101,10 +117,10 @@ export function drawTitle(ctx, state, view, options) {
     ['W A S D', 'walk / drive'],
     ['SHIFT', 'sprint'],
     ['E', 'take a car · talk · jobs'],
-    ['SPACE', 'handbrake · skip line'],
+    ['SPACE', 'handbrake · skip a line'],
     ['MOUSE', 'aim'],
     ['CLICK', 'fire'],
-    ['ESC', 'pause · save'],
+    ['M · ESC', 'pause · save · restart'],
   ];
   rows.forEach((row, i) => {
     const ry = py + 52 + i * 28;
@@ -113,6 +129,12 @@ export function drawTitle(ctx, state, view, options) {
     ctx.font = `500 12px ${FONT}`;
     ctx.fillText(row[1], px + 102, ry);
   });
+  ctx.font = `600 10px ${FONT}`;
+  ctx.fillStyle = 'rgba(240,236,228,0.5)';
+  ctx.fillText('THE JOB LIST, IN ORDER', px + 18, py + 254);
+  ctx.fillStyle = PALETTE.hudDim;
+  ctx.fillText('1 SUNSET RUN · 2 SALT & STATIC', px + 18, py + 268);
+  ctx.fillText('3 BAD SIGNAL · 4 HEAT INDEX · 5 THE LAST WAVE', px + 18, py + 282);
 
   // Footer.
   ctx.font = `500 11px ${FONT}`;
@@ -144,8 +166,10 @@ export function drawPause(ctx, state, view, options) {
   ctx.fillText('PAUSED', w / 2, py + 68);
   ctx.font = `600 12px ${FONT}`;
   ctx.fillStyle = PALETTE.neonAmber;
-  ctx.fillText('VELVET COAST · VELARA BAY', w / 2, py + 92);
-  const items = options.saveMessage ? ['RESUME', 'SAVED TO THIS BROWSER', 'QUIT TO TITLE'] : ['RESUME', 'SAVE GAME', 'QUIT TO TITLE'];
+  ctx.fillText('VELVET COAST · VELARA BAY · M', w / 2, py + 92);
+  const items = options.saveMessage
+    ? ['RESUME', 'SAVED TO THIS BROWSER', 'RESTART · BACK TO TITLE']
+    : ['RESUME', 'SAVE GAME', 'RESTART · BACK TO TITLE'];
   items.forEach((item, i) => {
     const y = py + 142 + i * 40;
     ctx.font = `${i === options.pauseIndex ? 700 : 500} 16px ${FONT}`;
@@ -158,7 +182,8 @@ export function drawPause(ctx, state, view, options) {
   });
   ctx.font = `500 11px ${FONT}`;
   ctx.fillStyle = 'rgba(240,236,228,0.4)';
-  ctx.fillText('arrow keys to choose · ENTER to confirm · ESC to resume', w / 2, py + ph - 26);
+  ctx.fillText('M or ESC opens and closes this · arrows + ENTER to choose', w / 2, py + ph - 44);
+  ctx.fillText('RESTART drops the run and puts you back on the title screen', w / 2, py + ph - 26);
   ctx.textAlign = 'left';
 }
 
@@ -169,25 +194,33 @@ export function drawDialogue(ctx, state, view) {
   const w = view.width;
   const h = view.height;
 
-  // Job title band across the top.
-  const title = state.missions.active?.def?.title ?? 'JOB';
-  ctx.fillStyle = 'rgba(6,6,14,0.78)';
-  ctx.fillRect(0, 64, w, 44);
-  ctx.fillStyle = PALETTE.neonPink;
-  ctx.fillRect(0, 64, w, 2);
-  ctx.textAlign = 'center';
-  ctx.font = `800 20px ${FONT}`;
-  ctx.fillStyle = '#f7f3ea';
-  ctx.fillText(title, w / 2, 92);
-  ctx.font = `600 10px ${FONT}`;
-  ctx.fillStyle = PALETTE.neonPink;
-  ctx.fillText('VELARA BAY · JOB BRIEF', w / 2, 106);
-  ctx.textAlign = 'left';
+  // Between jobs there is no active def yet, so fall back to the job waiting to be taken: the order
+  // and the payout on the band are the point of the band.
+  const def = state.missions.active?.def ?? MISSIONS[Math.min(state.missions.index, MISSIONS.length - 1)];
+  const total = state.missions.total ?? MISSIONS.length;
+  const title = def?.title ?? 'JOB';
+  const order = Math.min(state.missions.index + 1, total);
 
   const pw = Math.min(880, w - 140);
   const ph = 168;
   const px = w / 2 - pw / 2;
   const py = h - ph - 44;
+
+  // The job band sits directly above the card, where it cannot land on top of the HUD's own
+  // objective and payslip list in the top-left corner.
+  const bandY = py - 54;
+  ctx.fillStyle = 'rgba(6,6,14,0.78)';
+  ctx.fillRect(0, bandY, w, 48);
+  ctx.fillStyle = PALETTE.neonPink;
+  ctx.fillRect(0, bandY, w, 2);
+  ctx.textAlign = 'center';
+  ctx.font = `800 20px ${FONT}`;
+  ctx.fillStyle = '#f7f3ea';
+  ctx.fillText(`JOB ${order} OF ${total} · ${title}`, w / 2, bandY + 26);
+  ctx.font = `600 10px ${FONT}`;
+  ctx.fillStyle = PALETTE.neonPink;
+  ctx.fillText(`VELARA BAY · JOB BRIEF · PAYS $${(def?.reward ?? 0).toLocaleString('en-US')}`, w / 2, bandY + 42);
+  ctx.textAlign = 'left';
   ctx.fillStyle = 'rgba(8,8,16,0.92)';
   ctx.beginPath();
   ctx.roundRect(px, py, pw, ph, 12);
@@ -321,7 +354,12 @@ export function drawPhaseCard(ctx, state, view) {
   ctx.font = `600 15px ${FONT}`;
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
   const now = clockLabel(state.tod);
-  ctx.fillText(`${now} · VELARA BAY · MEDICAL AND LEGAL FEES $250`, w / 2, h / 2 + 34);
+  // Say which building you come back at, because busted and wasted are not the same night.
+  const where = busted ? state.city?.places?.station?.label ?? 'VELARA BAY PD' : state.city?.places?.hospital?.label ?? 'MERCY GENERAL';
+  ctx.fillText(`${now} · ${where} · FEES $250`, w / 2, h / 2 + 34);
+  ctx.font = `600 12px ${FONT}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillText(busted ? 'RELEASED WITH YOUR WALLET LIGHTER' : 'PATCHED UP AND BACK ON THE STREET', w / 2, h / 2 + 56);
   const dots = Math.ceil(state.phaseTimer / 0.4) % 2;
   ctx.fillStyle = dots ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.15)';
   ctx.fillText('RECOVERING', w / 2, h / 2 + 68);
